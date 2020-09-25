@@ -1,0 +1,10 @@
+DECIMALS = {
+    'PION': 10 ** 9,
+    'ETH': 10 ** 18,
+    'USD': 10 ** 18,
+}
+
+REBASE_DELAY = 12 * 60 * 60
+SECONDS_IN_DAY = 24 * 60 * 60
+AVERAGE_BLOCK_TIME = 20
+BLOCKS_DELAY = 10
