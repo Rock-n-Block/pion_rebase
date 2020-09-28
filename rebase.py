@@ -5,10 +5,11 @@ import datetime
 import requests
 from web3 import Web3, HTTPProvider
 
-from consts import DECIMALS, SECONDS_IN_DAY, REBASE_DELAY, AVERAGE_BLOCK_TIME, BLOCKS_DELAY
-from contracts_abi import REBASE_ABI, UNISWAP_ABI, ORACLES_ABI
+from app.models import db, RebaseHistory, LastRebase
+from contracts.consts import DECIMALS, SECONDS_IN_DAY, REBASE_DELAY, AVERAGE_BLOCK_TIME, BLOCKS_DELAY
+from contracts.contracts_abi import REBASE_ABI, UNISWAP_ABI, ORACLES_ABI, PION_ABI
 from settings_local import (NODE_HTTP_ENDPOINT, ORCHESTRATOR_ADDRESS, SENDER_ADDRESS, SENDER_PRIV_KEY, UNISWAP_ADDRESS,
-                            MARKET_ORACLE_ADDRESS, CPI_ORACLE_ADDRESS)
+                            MARKET_ORACLE_ADDRESS, CPI_ORACLE_ADDRESS, PION_TOKEN_ADDRESS)
 
 
 class Contract:
@@ -33,6 +34,14 @@ class Contract:
         print(tx_hash.hex(), flush=True)
 
 
+class PionContract(Contract):
+    def __init__(self, contract_address, contract_abi):
+        super().__init__(contract_address, contract_abi)
+
+    def total_supply(self):
+        return self.contract.functions.totalSupply().call()
+
+
 class RebaseContract(Contract):
     def __init__(self, contract_address, contract_abi):
         super().__init__(contract_address, contract_abi)
@@ -47,17 +56,20 @@ class RebaseContract(Contract):
         print('rebase transaction sent', flush=True)
 
     def get_last_rebase(self):
-        try:
-            with open('last_rebase_time.txt', 'r') as file:
-                last_rebase_time = int(file.read())
-        except FileNotFoundError:
-            print('last rebase file not found', flush=True)
-            return 0
-        return last_rebase_time
+        last_rebase = LastRebase.query.first()
+        if last_rebase:
+            return last_rebase.seconds
+        print('last rebase record not found', flush=True)
+        return 0
 
     def save_last_rebase(self, last_rebase_time):
-        with open('last_rebase_time.txt', 'w') as file:
-            file.write(str(last_rebase_time))
+        last_rebase = LastRebase.query.first()
+        if last_rebase:
+            last_rebase.seconds = last_rebase_time
+        else:
+            last_rebase = LastRebase(seconds=last_rebase_time)
+            db.session.add(last_rebase)
+        db.session.commit()
         print('last rebase time saved', flush=True)
 
     def generate_rebase_time(self):
@@ -95,6 +107,8 @@ class MarketOracleContract(Contract):
 
         self._sign_and_send(tx_data)
 
+        return pion_usd_rate
+
 
 class CPIContractOracle(Contract):
     def __init__(self, contract_address, contract_abi):
@@ -112,12 +126,26 @@ class CPIContractOracle(Contract):
         print(tx_data, flush=True)
 
         self._sign_and_send(tx_data)
+        return cpi_value
+
+
+def save_rebase_history(pion_usd_rate, cpi_value, total_supply):
+    print(f'usd_rate: {pion_usd_rate}, cpi_value: {cpi_value}, total_supply: {total_supply}', flush=True)
+    rebase = RebaseHistory(usd_price=pion_usd_rate, cpi_value=cpi_value, total_supply=total_supply)
+    db.session.add(rebase)
+    db.session.commit()
+    print('rebase info saved to db', flush=True)
+
+
+def wait_blocks():
+    time.sleep(AVERAGE_BLOCK_TIME * BLOCKS_DELAY)
 
 
 if __name__ == '__main__':
     rebase_contract = RebaseContract(ORCHESTRATOR_ADDRESS, REBASE_ABI)
     market_oracle_contract = MarketOracleContract(MARKET_ORACLE_ADDRESS, ORACLES_ABI)
     cpi_oracle_contract = CPIContractOracle(CPI_ORACLE_ADDRESS, ORACLES_ABI)
+    pion_contract = PionContract(PION_TOKEN_ADDRESS, PION_ABI)
 
     seconds_to_rebase = rebase_contract.generate_rebase_time()
     execution_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=seconds_to_rebase)
@@ -125,10 +153,14 @@ if __name__ == '__main__':
           flush=True)
     time.sleep(seconds_to_rebase)
 
-    market_oracle_contract.set_market_oracle()
-    cpi_oracle_contract.set_cpi_oracle()
+    pion_usd_rate = market_oracle_contract.set_market_oracle()
+    cpi_value = cpi_oracle_contract.set_cpi_oracle()
     print(f'oracles data set, wait {AVERAGE_BLOCK_TIME * BLOCKS_DELAY} seconds', flush=True)
-    time.sleep(AVERAGE_BLOCK_TIME * BLOCKS_DELAY)
+    wait_blocks()
 
     rebase_contract.execute_rebase()
     rebase_contract.save_last_rebase(seconds_to_rebase)
+    wait_blocks()
+
+    total_supply = pion_contract.total_supply()
+    save_rebase_history(pion_usd_rate, cpi_value, total_supply)
