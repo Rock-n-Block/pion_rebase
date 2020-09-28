@@ -51,18 +51,18 @@ class RebaseContract(Contract):
             with open('last_rebase_time.txt', 'r') as file:
                 last_rebase_time = int(file.read())
         except FileNotFoundError:
-            print('last rebase file not found')
+            print('last rebase file not found', flush=True)
             return 0
         return last_rebase_time
 
     def save_last_rebase(self, last_rebase_time):
         with open('last_rebase_time.txt', 'w') as file:
             file.write(str(last_rebase_time))
-        print('last rebase time saved')
+        print('last rebase time saved', flush=True)
 
     def generate_rebase_time(self):
         last_rebase_time = rebase_contract.get_last_rebase()
-        print('last rebase time', last_rebase_time)
+        print('last rebase time', last_rebase_time, flush=True)
         seconds_to_rebase = random.randint(max(last_rebase_time - REBASE_DELAY, 0), SECONDS_IN_DAY)
 
         return seconds_to_rebase
@@ -82,7 +82,7 @@ class MarketOracleContract(Contract):
         eth_usd_rate = eth_rate_request.json()['ethereum']['usd']
 
         pion_usd_rate = int(pion_eth_rate * eth_usd_rate * DECIMALS['USD'])
-        print('PION USD RATE', pion_usd_rate)
+        print('PION USD RATE', pion_usd_rate, flush=True)
         return pion_usd_rate
 
     def set_market_oracle(self):
@@ -121,12 +121,13 @@ if __name__ == '__main__':
 
     seconds_to_rebase = rebase_contract.generate_rebase_time()
     execution_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=seconds_to_rebase)
-    print(f'generated time = {seconds_to_rebase} \nrebase should start at {execution_time.replace(microsecond=0)} UTC')
+    print(f'generated time = {seconds_to_rebase} \nrebase should start at {execution_time.replace(microsecond=0)} UTC',
+          flush=True)
     time.sleep(seconds_to_rebase)
 
     market_oracle_contract.set_market_oracle()
     cpi_oracle_contract.set_cpi_oracle()
-    print(f'oracles data set, wait {AVERAGE_BLOCK_TIME * BLOCKS_DELAY} seconds')
+    print(f'oracles data set, wait {AVERAGE_BLOCK_TIME * BLOCKS_DELAY} seconds', flush=True)
     time.sleep(AVERAGE_BLOCK_TIME * BLOCKS_DELAY)
 
     rebase_contract.execute_rebase()
