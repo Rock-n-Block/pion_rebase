@@ -12,6 +12,7 @@ class RebaseHistory(db.Model):
     cpi_value = db.Column(db.Numeric(precision=MAX_DECIMAL))
     total_supply = db.Column(db.Numeric(precision=MAX_DECIMAL))
     date = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    raised = db.Column(db.Boolean)
 
     def serialize(self):
         repr_data = {
@@ -20,6 +21,7 @@ class RebaseHistory(db.Model):
             'cpi_value': str(self.cpi_value),
             'total_supply': str(self.total_supply),
             'date': int(self.date.timestamp()),
+            'raised': self.raised,
         }
         return repr_data
 

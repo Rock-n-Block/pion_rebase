@@ -136,7 +136,14 @@ class CPIContractOracle(Contract):
 
 def save_rebase_history(pion_usd_rate, cpi_value, total_supply):
     print(f'usd_rate: {pion_usd_rate}, cpi_value: {cpi_value}, total_supply: {total_supply}', flush=True)
-    rebase = RebaseHistory(usd_price=pion_usd_rate, cpi_value=cpi_value, total_supply=total_supply)
+    last_rebase = RebaseHistory.query.order_by(RebaseHistory.date.desc()).first()
+    raised = None
+    if last_rebase:
+        if last_rebase.total_supply < total_supply:
+            raised = True
+        elif last_rebase.total_supply > total_supply:
+            raised = False
+    rebase = RebaseHistory(usd_price=pion_usd_rate, cpi_value=cpi_value, total_supply=total_supply, raised=raised)
     db.session.add(rebase)
     db.session.commit()
     print('rebase info saved to db', flush=True)
