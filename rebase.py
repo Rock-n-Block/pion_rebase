@@ -9,7 +9,7 @@ from app.models import db, RebaseHistory, LastRebase
 from contracts.consts import DECIMALS, SECONDS_IN_DAY, REBASE_DELAY, AVERAGE_BLOCK_TIME, BLOCKS_DELAY
 from contracts.contracts_abi import REBASE_ABI, UNISWAP_ABI, ORACLES_ABI, PION_ABI
 from settings_local import (NODE_HTTP_ENDPOINT, ORCHESTRATOR_ADDRESS, SENDER_ADDRESS, SENDER_PRIV_KEY, UNISWAP_ADDRESS,
-                            MARKET_ORACLE_ADDRESS, CPI_ORACLE_ADDRESS, PION_TOKEN_ADDRESS)
+                            MARKET_ORACLE_ADDRESS, CPI_ORACLE_ADDRESS, PION_TOKEN_ADDRESS, CPI_VALUE)
 
 
 class Contract:
@@ -115,7 +115,7 @@ class CPIContractOracle(Contract):
         super().__init__(contract_address, contract_abi)
 
     def get_cpi_value(self):
-        return int(259.681 * DECIMALS['USD'])
+        return int(CPI_VALUE * DECIMALS['USD'])
 
     def set_cpi_oracle(self):
         cpi_value = self.get_cpi_value()
